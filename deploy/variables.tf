@@ -16,6 +16,7 @@ variable "discord_bots" {
     default = {
         spongbob = {
             docker_image = "gcr.io/dyolcekaj-misc/discord-spongebob"
+            service_name = "discord-spongebob"
         }
     }
 }

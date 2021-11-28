@@ -16,4 +16,4 @@
 
 # Terraform stuff
 *.tfstate*
-.terraform/**
+*/.terraform/**

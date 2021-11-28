@@ -2,65 +2,91 @@ package bot
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/bwmarrin/discordgo"
 	"github.com/dyolcekaj/discord_bots/internal/healthcheck"
+	"github.com/sirupsen/logrus"
 )
 
+const DefaultPort = 8080
+
+const envToken = "DISCORD_BOT_TOKEN"
+const envClientID = "DISCORD_CLIENT_ID"
+
+var ErrNoToken = errors.New("no bot token provided")
+var ErrNoClientID = errors.New("no client ID provided")
+var ErrNotStarted = errors.New("stop called without starting")
+
 type BotOptions struct {
+	Port int
 }
 
 type Bot interface {
-	Shutdown() <-chan struct{}
-	Cancel()
+	Run() error
 }
 
 var _ Bot = (*bot)(nil)
 
 type bot struct {
-	s      *discordgo.Session
-	ctx    context.Context
-	cancel func()
+	token string
+	ctx   context.Context
+
+	httpSrv *http.Server
 }
 
-func New(bo BotOptions) Bot {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+func New(ctx context.Context, bo BotOptions) (Bot, error) {
+	token := os.Getenv(envToken)
+	if len(token) == 0 {
+		return nil, ErrNoToken
+	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthcheck", healthcheck.HandlerFunc)
+	mux.HandleFunc("/", healthcheck.HandlerFunc)
+
+	port := DefaultPort
+	if bo.Port != 0 {
+		port = bo.Port
+	}
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Error("http server unexpectedly exited")
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		log.Info("shutting http server down")
-		srv.Shutdown(context.Background())
-	}()
-
 	return &bot{
-		ctx:    ctx,
-		cancel: cancel,
+		token: token,
+		ctx:   ctx,
+
+		httpSrv: srv,
+	}, nil
+}
+
+func (b *bot) Run() error {
+	// Caller cancelling context will propagate and we need
+	// only pay attention to this child's done-ness
+	sigCtx, cancel := signal.NotifyContext(
+		b.ctx, syscall.SIGINT, syscall.SIGTERM,
+	)
+	defer cancel()
+
+	go func() {
+		<-sigCtx.Done()
+		logrus.Info("shutting internal http server down")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		b.httpSrv.Shutdown(ctx)
+	}()
+
+	if err := b.httpSrv.ListenAndServe(); err != http.ErrServerClosed {
+		return err
 	}
-}
 
-func (b *bot) Shutdown() <-chan struct{} {
-	return b.ctx.Done()
-}
-
-func (b *bot) Cancel() {
-	b.cancel()
+	return nil
 }

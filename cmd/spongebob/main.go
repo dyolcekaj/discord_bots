@@ -1,13 +1,21 @@
 package main
 
-import "github.com/dyolcekaj/discord_bots/internal/bot"
+import (
+	"context"
 
-func init() {
-	// do stuff
-}
+	"github.com/dyolcekaj/discord_bots/internal/bot"
+	"github.com/sirupsen/logrus"
+)
 
 func main() {
-	bot := bot.New(bot.BotOptions{})
+	bot, err := bot.New(context.Background(), bot.BotOptions{})
 
-	<-bot.Shutdown()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	if err := bot.Run(); err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Info("bot gracefully shutdown")
 }

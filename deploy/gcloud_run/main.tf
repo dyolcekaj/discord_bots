@@ -1,5 +1,5 @@
 resource "google_cloud_run_service" "default" {
-  name     = "cloudrun-srv"
+  name     = var.service_name
   location = "us-central1"
 
   template {

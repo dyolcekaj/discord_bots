@@ -9,4 +9,5 @@ module "gcloud_run" {
     for_each = var.discord_bots
 
     docker_image = each.value.docker_image
+    service_name = each.value.service_name
 }
