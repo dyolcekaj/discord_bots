@@ -6,12 +6,14 @@ WORKDIR /app
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" ./cmd/${COMMAND_NAME}
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o discord-bot ./cmd/${COMMAND_NAME}
 
 FROM scratch
 
 WORKDIR /app
 
-COPY --from=builder /app/${COMMAND_NAME} /usr/bin/
+EXPOSE 8080/tcp
 
-ENTRYPOINT ["${COMMAND_NAME}"]
+COPY --from=builder /app/discord-bot /usr/bin/
+
+ENTRYPOINT ["discord-bot"]
