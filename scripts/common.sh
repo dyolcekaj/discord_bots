@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPO="dyolcekaj/images"
+REPO="gcr.io/dyolcekaj-misc"
 IMG_PREFIX="discord"
 
 check_root() {
@@ -28,7 +28,7 @@ docker_build() {
     check_root
     check_cmd_arg ${CMD}
 
-    IMG="${REPO}:${IMG_PREFIX}-${CMD}"
+    IMG="${REPO}/${IMG_PREFIX}-${CMD}"
     docker build -t ${IMG} --build-arg COMMAND_NAME=${CMD} -f build/Dockerfile .
 }
 
@@ -38,7 +38,7 @@ docker_push() {
     check_root
     check_cmd_arg ${CMD}
 
-    IMG="${REPO}:${IMG_PREFIX}-${CMD}"
+    IMG="${REPO}/${IMG_PREFIX}-${CMD}"
     docker image inspect ${IMG} &>/dev/null
 
     if [ $? -ne 0 ]; then  
