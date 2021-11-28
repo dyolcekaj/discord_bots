@@ -3,12 +3,18 @@ package main
 import (
 	"context"
 
-	"github.com/dyolcekaj/discord_bots/internal/bot"
+	"github.com/dyolcekaj/discord_bots/pkg/discord"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	bot, err := bot.New(context.Background(), bot.BotOptions{})
+	spongebob := discord.NewSlashCommand("spongebob")
+
+	bot, err := discord.NewBot(
+		context.Background(),
+		discord.BotOptions{},
+		[]discord.Command{spongebob},
+	)
 
 	if err != nil {
 		logrus.Fatal(err)
@@ -17,5 +23,6 @@ func main() {
 	if err := bot.Run(); err != nil {
 		logrus.Fatal(err)
 	}
+
 	logrus.Info("bot gracefully shutdown")
 }

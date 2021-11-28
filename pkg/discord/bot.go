@@ -1,23 +1,21 @@
-package bot
+package discord
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/dyolcekaj/discord_bots/internal/healthcheck"
 	"github.com/sirupsen/logrus"
 )
 
 const DefaultPort = 8080
 
-const envToken = "DISCORD_BOT_TOKEN"
-const envClientID = "DISCORD_CLIENT_ID"
+const DefaultTokenEnv = "DISCORD_BOT_TOKEN"
+const DefaultClientIDEnv = "DISCORD_CLIENT_ID"
 
 var ErrNoToken = errors.New("no bot token provided")
 var ErrNoClientID = errors.New("no client ID provided")
@@ -25,6 +23,9 @@ var ErrNotStarted = errors.New("stop called without starting")
 
 type BotOptions struct {
 	Port int
+
+	TokenEnv    string
+	ClientIDEnv string
 }
 
 type Bot interface {
@@ -34,20 +35,27 @@ type Bot interface {
 var _ Bot = (*bot)(nil)
 
 type bot struct {
-	token string
-	ctx   context.Context
+	token    string
+	clientId string
+	commands []Command
+
+	ctx context.Context
 
 	httpSrv *http.Server
 }
 
-func New(ctx context.Context, bo BotOptions) (Bot, error) {
-	token := os.Getenv(envToken)
+func NewBot(ctx context.Context, bo BotOptions, commands []Command) (Bot, error) {
+	token := getEnv(bo.TokenEnv, DefaultTokenEnv)
 	if len(token) == 0 {
 		return nil, ErrNoToken
 	}
+	clientId := getEnv(bo.ClientIDEnv, DefaultClientIDEnv)
+	if len(clientId) == 0 {
+		return nil, ErrNoClientID
+	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", healthcheck.HandlerFunc)
+	mux.Handle("/", NewHandler(commands))
 
 	port := DefaultPort
 	if bo.Port != 0 {
@@ -60,10 +68,11 @@ func New(ctx context.Context, bo BotOptions) (Bot, error) {
 	}
 
 	return &bot{
-		token: token,
-		ctx:   ctx,
-
-		httpSrv: srv,
+		token:    token,
+		clientId: clientId,
+		commands: commands,
+		ctx:      ctx,
+		httpSrv:  srv,
 	}, nil
 }
 
@@ -83,6 +92,8 @@ func (b *bot) Run() error {
 		defer cancel()
 		b.httpSrv.Shutdown(ctx)
 	}()
+
+	b.registerOrUpdateCommands()
 
 	if err := b.httpSrv.ListenAndServe(); err != http.ErrServerClosed {
 		return err
